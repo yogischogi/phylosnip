@@ -44,6 +44,7 @@ func (db *DB) ReadISOGGcsv(filename string) error {
 
 	// Read all CSV records from file.
 	csvReader := csv.NewReader(infile)
+	csvReader.LazyQuotes = true
 	//csvReader.FieldsPerRecord = -1
 	records, err := csvReader.ReadAll()
 	if err != nil {
