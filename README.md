@@ -23,6 +23,13 @@ phylosnip interesction -in=01.csv,02.csv -out=result.csv
 phylosnip difference -ain=01.csv -bin=02.csv -out=result.csv
 
 
+## Lookup SNPs in ISOGG database
+
+phylosnip lookup -in=00.csv -isoggdb=snps_hg38.csv
+
+phylosnip lookup -in=indir -out=outdir -isoggdb=snps_hg38.csv
+
+
 ## Documentation
 
 * [Source Code](http://godoc.org/github.com/yogischogi/phylosnip)

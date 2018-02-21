@@ -23,7 +23,9 @@ func main() {
 			"    intersection\n" +
 			"        calculates the intersection of SNPs from CSV files.\n" +
 			"    difference\n" +
-			"        calculates the difference of SNPs from CSV files.\n")
+			"        calculates the difference of SNPs from CSV files.\n" +
+			"    lookup\n" +
+			"        adds ISOGG data base information to SNP CSV files.\n")
 		os.Exit(1)
 	}
 
@@ -41,6 +43,8 @@ func main() {
 		cmd.Intersection(os.Args[2:])
 	case "difference":
 		cmd.Difference(os.Args[2:])
+	case "lookup":
+		cmd.Lookup(os.Args[2:])
 	default:
 		fmt.Printf("Unknown command: %s\n", os.Args[1])
 	}
