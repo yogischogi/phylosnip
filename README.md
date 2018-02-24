@@ -11,7 +11,7 @@ phylosnip filterftdna -in=ftdna.csv -out=ftdna-novels.csv -mutationsonly=true -i
 
 phylosnip filteryfull -in=yfull.csv -out=yfull-amb.csv -quality=ambiguous
 
-phylosnip filtervcf -in=000.vcf -out=000.csv -mutationsonly=true
+phylosnip filtervcf -in=000.vcf -out=000.csv
 
 
 ### Set operations
