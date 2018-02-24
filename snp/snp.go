@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // SNP is an SNP mutation.
@@ -113,10 +114,10 @@ func ReadCSV(filename string) (SNPs, error) {
 // SNP must have to be included. SNPs that have passed the quality
 // test are always included. Set quality to +Inf if you only want to
 // include SNPs that have passed the quality test.
-// If mutationsOnly == true, only real mutations are included.
-// Otherwise the result included also position where Ref and Alt values
 // are identical.
-func ReadVCF(filename string, quality float64, mutationsOnly bool) (SNPs, error) {
+// reads is the required miminum number of reads.
+// ratio is the required minimum ratio of ALT to REF reads.
+func ReadVCF(filename string, quality float64, reads, ratio int) (SNPs, error) {
 	infile, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -135,7 +136,7 @@ func ReadVCF(filename string, quality float64, mutationsOnly bool) (SNPs, error)
 
 	result := make(map[SNP]bool)
 	for _, record := range records {
-		snp, exists := fieldsToSNP(record, quality, mutationsOnly)
+		snp, exists := fieldsToSNP(record, quality, reads, ratio)
 		if exists {
 			result[snp] = true
 		}
@@ -145,18 +146,19 @@ func ReadVCF(filename string, quality float64, mutationsOnly bool) (SNPs, error)
 
 // fieldsToSNP tries to convert the entries of a VCF file line
 // into an SNP.
-// quality and mutationsOnly are the same parameters as in ReadVCF.
-func fieldsToSNP(fields []string, quality float64, mutationsOnly bool) (snp SNP, exists bool) {
+// reads and ratio are the same parameters as in ReadVCF.
+func fieldsToSNP(fields []string, quality float64, reads, ratio int) (snp SNP, exists bool) {
 	// Positions of the entries.
 	const (
-		pos    = 1
-		ref    = 3
-		alt    = 4
-		qual   = 5
-		filter = 6
+		pos     = 1
+		ref     = 3
+		alt     = 4
+		qual    = 5
+		filter  = 6
+		details = 9
 	)
 	// Exclude invalid lines and non-SNP mutations
-	if len(fields) < 7 || len(fields[ref]) != 1 || len(fields[alt]) != 1 {
+	if len(fields) < details+1 || len(fields[ref]) != 1 || len(fields[alt]) != 1 {
 		return snp, false
 	}
 	snpPos, err := strconv.Atoi(fields[pos])
@@ -168,15 +170,37 @@ func fieldsToSNP(fields []string, quality float64, mutationsOnly bool) (snp SNP,
 		return snp, false
 	}
 
+	// Extract the number of reads for REF, ALT and total.
+	refReads := 0
+	altReads := 0
+	strReads := strings.Split(fields[details], ":")
+	totalReads, err := strconv.Atoi(strReads[2])
+	if err != nil || totalReads < reads {
+		return snp, false
+	}
+	strRefAlt := strings.Split(strReads[1], ",")
+	refReads, err = strconv.Atoi(strRefAlt[0])
+	if err != nil {
+		return snp, false
+	}
+	if len(strRefAlt) >= 2 {
+		altReads, err = strconv.Atoi(strRefAlt[1])
+		if err != nil {
+			return snp, false
+		}
+	} else {
+		altReads = 0
+	}
+
 	// Return SNP that satisfy the quality requirements.
 	if fields[filter] == "PASS" || snpQuality >= quality {
-		snp = SNP{Pos: snpPos, Ref: fields[ref], Alt: fields[alt]}
-		if mutationsOnly {
-			if snp.Ref != snp.Alt && snp.Alt != "." {
-				return snp, true
+		if refReads > 0 {
+			if altReads/refReads >= ratio {
+				return SNP{Pos: snpPos, Ref: fields[ref], Alt: fields[alt]}, true
 			}
 		} else {
-			return snp, true
+			// Only ALT reads.
+			return SNP{Pos: snpPos, Ref: fields[ref], Alt: fields[alt]}, true
 		}
 	}
 	return snp, false

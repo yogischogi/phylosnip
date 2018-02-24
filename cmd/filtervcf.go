@@ -14,10 +14,11 @@ import (
 func FilterVCF(cmdLine []string) {
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	var (
-		in            = flags.String("in", "", "List of VCF files or directory.")
-		out           = flags.String("out", "", "Output file for list of SNPs in CSV format.")
-		quality       = flags.Float64("quality", math.Inf(1), "Quality of SNP entry in VCF file.")
-		mutationsonly = flags.Bool("mutationsonly", true, "If mutationsonly=true only mutations are reported.")
+		in      = flags.String("in", "", "List of VCF files or directory.")
+		out     = flags.String("out", "", "Output file for list of SNPs in CSV format.")
+		quality = flags.Float64("quality", math.Inf(1), "Quality of SNP entry in VCF file.")
+		reads   = flags.Int("reads", 3, "Minimum of total reads.")
+		ratio   = flags.Int("ratio", 3, "Minimum ratio of ALT to REF reads.")
 	)
 	flags.Parse(cmdLine)
 
@@ -34,7 +35,7 @@ func FilterVCF(cmdLine []string) {
 	inNames, outNames, err := inToOutFilenames(*in, ".vcf", *out, ".csv")
 	checkFatal(err, "Error converting filenames from parameter in to out")
 	for i, _ := range inNames {
-		snps, err := snp.ReadVCF(inNames[i], *quality, *mutationsonly)
+		snps, err := snp.ReadVCF(inNames[i], *quality, *reads, *ratio)
 		checkFatal(err, "Error reading VCF file")
 		if outNames[i] != "" {
 			// Write to file.
