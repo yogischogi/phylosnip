@@ -114,10 +114,10 @@ func ReadCSV(filename string) (SNPs, error) {
 // SNP must have to be included. SNPs that have passed the quality
 // test are always included. Set quality to +Inf if you only want to
 // include SNPs that have passed the quality test.
-// are identical.
+// If mutationsOnly == true only mutations are reported.
 // reads is the required miminum number of reads.
 // ratio is the required minimum ratio of ALT to REF reads.
-func ReadVCF(filename string, quality float64, reads, ratio int) (SNPs, error) {
+func ReadVCF(filename string, quality float64, mutationsOnly bool, reads, ratio int) (SNPs, error) {
 	infile, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func ReadVCF(filename string, quality float64, reads, ratio int) (SNPs, error) {
 
 	result := make(map[SNP]bool)
 	for _, record := range records {
-		snp, exists := fieldsToSNP(record, quality, reads, ratio)
+		snp, exists := fieldsToSNP(record, quality, mutationsOnly, reads, ratio)
 		if exists {
 			result[snp] = true
 		}
@@ -146,8 +146,8 @@ func ReadVCF(filename string, quality float64, reads, ratio int) (SNPs, error) {
 
 // fieldsToSNP tries to convert the entries of a VCF file line
 // into an SNP.
-// reads and ratio are the same parameters as in ReadVCF.
-func fieldsToSNP(fields []string, quality float64, reads, ratio int) (snp SNP, exists bool) {
+// minReads and ratio are the same parameters as in ReadVCF.
+func fieldsToSNP(fields []string, quality float64, mutationsOnly bool, minReads, ratio int) (snp SNP, exists bool) {
 	// Positions of the entries.
 	const (
 		pos     = 1
@@ -158,50 +158,77 @@ func fieldsToSNP(fields []string, quality float64, reads, ratio int) (snp SNP, e
 		details = 9
 	)
 	// Exclude invalid lines and non-SNP mutations
-	if len(fields) < details+1 || len(fields[ref]) != 1 || len(fields[alt]) != 1 {
+	if len(fields) < details+1 || len(fields[ref]) != 1 {
 		return snp, false
 	}
-	snpPos, err := strconv.Atoi(fields[pos])
-	if err != nil {
-		return snp, false
-	}
+	// Check for quality.
 	snpQuality, err := strconv.ParseFloat(fields[qual], 64)
 	if err != nil {
 		return snp, false
 	}
-
-	// Extract the number of reads for REF, ALT and total.
-	refReads := 0
-	altReads := 0
-	strReads := strings.Split(fields[details], ":")
-	totalReads, err := strconv.Atoi(strReads[2])
-	if err != nil || totalReads < reads {
+	if fields[filter] != "PASS" && snpQuality < quality {
 		return snp, false
 	}
-	strRefAlt := strings.Split(strReads[1], ",")
-	refReads, err = strconv.Atoi(strRefAlt[0])
+
+	snpPos, err := strconv.Atoi(fields[pos])
 	if err != nil {
 		return snp, false
 	}
-	if len(strRefAlt) >= 2 {
-		altReads, err = strconv.Atoi(strRefAlt[1])
+
+	// Determine allele names and number of reads.
+	// alleles are all different values that were read.
+	// The first position is REF.
+	alleles := []string{fields[ref]}
+	altFields := strings.Split(fields[alt], ",")
+	alleles = append(alleles, altFields...)
+
+	reads := make([]int, len(alleles), len(alleles))
+	strDetails := strings.Split(fields[details], ":")
+	strReads := strings.Split(strDetails[1], ",")
+	for i, _ := range strReads {
+		r, err := strconv.Atoi(strReads[i])
 		if err != nil {
 			return snp, false
 		}
-	} else {
-		altReads = 0
+		reads[i] = r
 	}
 
-	// Return SNP that satisfy the quality requirements.
-	if fields[filter] == "PASS" || snpQuality >= quality {
-		if refReads > 0 {
-			if altReads/refReads >= ratio {
-				return SNP{Pos: snpPos, Ref: fields[ref], Alt: fields[alt]}, true
-			}
-		} else {
-			// Only ALT reads.
-			return SNP{Pos: snpPos, Ref: fields[ref], Alt: fields[alt]}, true
+	value, exists := snpValue(alleles, reads, minReads, ratio)
+	if exists {
+		if fields[ref] != value || mutationsOnly == false {
+			return SNP{Pos: snpPos, Ref: fields[ref], Alt: value}, true
 		}
+	}
+	return snp, false
+}
+
+// snpValues determines the valid allele value from a number of alleles
+// and their number of reads.
+func snpValue(alleles []string, reads []int, minReads, ratio int) (snp string, exists bool) {
+	// Determine maximum number of reads.
+	max := 0
+	iMax := 0
+	for i, r := range reads {
+		if r > max {
+			max = r
+			iMax = i
+		}
+	}
+	if max < minReads {
+		return snp, false
+	}
+	// Check minimum ratio for reads.
+	for i, r := range reads {
+		if r == 0 || i == iMax {
+			continue
+		}
+		if max/r < ratio {
+			return snp, false
+		}
+	}
+
+	if len(alleles[iMax]) == 1 {
+		return alleles[iMax], true
 	}
 	return snp, false
 }
