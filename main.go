@@ -18,6 +18,8 @@ func main() {
 			"        extracts SNPs from FTDNA CSV file.\n" +
 			"    filteryfull\n" +
 			"        extracts SNPs from YFull novels SNP file.\n" +
+			"    filter\n" +
+			"        filters SNPs for BED regions and excludes.\n" +
 			"    union\n" +
 			"        unites SNPs from CSV files.\n" +
 			"    intersection\n" +
@@ -37,6 +39,8 @@ func main() {
 		cmd.FilterFTDNA(os.Args[2:])
 	case "filteryfull":
 		cmd.FilterYFull(os.Args[2:])
+	case "filter":
+		cmd.Filter(os.Args[2:])
 	case "union":
 		cmd.Union(os.Args[2:])
 	case "intersection":
